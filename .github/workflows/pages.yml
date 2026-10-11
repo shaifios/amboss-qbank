@@ -22,16 +22,23 @@ jobs:
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
 
-      - name: Rebuild the exact HTML page
+      - name: Split tests and build the fast landing page
+        run: python3 build_site.py
+
+      - name: Verify generated site
         run: |
           set -eu
-          mkdir -p _site
-          gzip -dc AMBOSSQBank.html.gz > _site/index.html
-          cp manus-routes.json _site/manus-routes.json
-          touch _site/.nojekyll
           test -s _site/index.html
-          test "$(stat -c %s _site/index.html)" -lt 1073741824
-          sha256sum _site/index.html
+          test -s _site/downloads/AMBOSSQBank.html
+          test -s _site/manus-routes.json
+          test "$(find _site/tests -maxdepth 1 -type f -name '*.json' | wc -l)" -eq 1266
+          python3 - <<'PY'
+          from pathlib import Path
+          total = sum(p.stat().st_size for p in Path('_site').rglob('*') if p.is_file())
+          assert total < 1_000_000_000, f'Pages site too large: {total}'
+          print(f'Pages output size: {total:,} bytes')
+          PY
+          sha256sum _site/downloads/AMBOSSQBank.html
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4
